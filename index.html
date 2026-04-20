@@ -134,7 +134,7 @@
 
   /* Record Round */
   .winner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px; }
-  .winner-btn { padding: 20px 14px; border-radius: 16px; background: var(--pc-bg); color: var(--pc); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-align: left; position: relative; overflow: hidden; transition: transform 0.1s; border: 2px solid transparent; }
+  .winner-btn { padding: 20px 14px; border-radius: 16px; background: var(--pc-bg); color: var(--pc); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-align: left; position: relative; overflow: hidden; transition: transform 0.1s; border: 2px solid transparent; white-space: nowrap; }
   .winner-btn:active { transform: scale(0.97); }
   .winner-btn.selected { background: var(--pc); color: #fdf8ea; box-shadow: 0 6px 16px -4px var(--pc); }
   .winner-btn.selected .tile { background: #fdf8ea; border-color: rgba(255,255,255,0.4); }
@@ -455,8 +455,8 @@ function Scoreboard({ rounds, newIds, mode, setMode, online }) {
       </div>
 
       <div className="view-toggle">
-        <button className={mode === 'player' ? 'on' : ''} onClick={() => setMode('player')}>By player</button>
         <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')}>By day</button>
+        <button className={mode === 'player' ? 'on' : ''} onClick={() => setMode('player')}>By player</button>
       </div>
 
       {mode === 'player' && PLAYERS.map(p => {
@@ -777,7 +777,7 @@ function App() {
   const [newIds, setNewIds] = useState([]);
   const [toast, setToast] = useState(null);
   const [showBurst, setShowBurst] = useState(false);
-  const [scoreMode, setScoreMode] = useState(() => { try { return localStorage.getItem('mahjong_scoremode_v1')||'player'; } catch { return 'player'; } });
+  const [scoreMode, setScoreMode] = useState(() => { try { return localStorage.getItem('mahjong_scoremode_v1')||'day'; } catch { return 'day'; } });
   const [settings, setSettings] = useState({});
   const [showSettings, setShowSettings] = useState(false);
   const [online, setOnline] = useState(null);
