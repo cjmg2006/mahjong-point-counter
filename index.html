@@ -28,7 +28,7 @@
 
 <style>
   :root {
-    --paper: #f5ecd9;
+    --paper: #fffbf0;
     --paper-2: #efe4c7;
     --paper-line: #e4d6b1;
     --ink: #2b2419;
@@ -123,6 +123,8 @@
   }
   .nav-btn { padding: 10px 4px 8px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-mute); text-transform: uppercase; transition: all 0.15s; }
   .nav-btn.active { background: var(--ink); color: var(--paper); }
+  .nav-btn.record-btn { color: var(--ink); }
+  .nav-btn.record-btn.active { background: #7a4a1e; color: #fdf5e0; box-shadow: 0 2px 10px -2px rgba(122,74,30,0.45); }
   .nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
 
   /* View */
@@ -134,7 +136,7 @@
 
   /* Record Round */
   .winner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px; }
-  .winner-btn { padding: 20px 14px; border-radius: 16px; background: var(--pc-bg); color: var(--pc); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-align: left; position: relative; overflow: hidden; transition: transform 0.1s; border: 2px solid transparent; white-space: nowrap; }
+  .winner-btn { padding: 20px 14px; border-radius: 16px; background: var(--pc-bg); color: var(--pc); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-align: left; position: relative; overflow: hidden; transition: transform 0.1s; border: 2px solid transparent; white-space: nowrap; width: 100%; }
   .winner-btn:active { transform: scale(0.97); }
   .winner-btn.selected { background: var(--pc); color: #fdf8ea; box-shadow: 0 6px 16px -4px var(--pc); }
   .winner-btn.selected .tile { background: #fdf8ea; border-color: rgba(255,255,255,0.4); }
@@ -778,8 +780,6 @@ function App() {
   const [toast, setToast] = useState(null);
   const [showBurst, setShowBurst] = useState(false);
   const [scoreMode, setScoreMode] = useState(() => { try { return localStorage.getItem('mahjong_scoremode_v1')||'day'; } catch { return 'day'; } });
-  const [settings, setSettings] = useState({});
-  const [showSettings, setShowSettings] = useState(false);
   const [online, setOnline] = useState(null);
 
   // Firebase real-time listener
@@ -814,7 +814,7 @@ function App() {
     setNewIds([id]);
     const p = PLAYERS.find(x => x.key===player);
     setToast(`${p.name} +${points} tai${points>=7?' · big hand!':''}`);
-    if (settings.confetti!==false) { setShowBurst(true); setTimeout(()=>setShowBurst(false),1300); }
+    setShowBurst(true); setTimeout(()=>setShowBurst(false),1300);
     setTimeout(()=>setToast(null),2000);
     setTimeout(()=>setNewIds([]),2500);
     setView('scoreboard');
@@ -822,12 +822,12 @@ function App() {
 
   const handleReset = () => {
     if (!confirm('Reset all scores to sample data?')) return;
-    const s = sampleData(); setRounds(s); writeRounds(s); setShowSettings(false);
+    const s = sampleData(); setRounds(s); writeRounds(s);
   };
 
   const handleClear = () => {
     if (!confirm('Clear all scores?')) return;
-    setRounds([]); writeRounds([]); setShowSettings(false);
+    setRounds([]); writeRounds([]);
   };
 
   if (!FIREBASE_READY) return <SetupScreen />;
@@ -841,17 +841,7 @@ function App() {
 
   return (
     <>
-      {view==='scoreboard' && (
-        <div style={{position:'relative'}}>
-          <Scoreboard rounds={rounds} newIds={newIds} mode={scoreMode} setMode={setScoreMode} online={online}/>
-          <button className="settings-btn" style={{position:'absolute',top:20,right:20}} onClick={()=>setShowSettings(s=>!s)} title="Settings">
-            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
-              <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
-              <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
-            </svg>
-          </button>
-        </div>
-      )}
+      {view==='scoreboard' && <Scoreboard rounds={rounds} newIds={newIds} mode={scoreMode} setMode={setScoreMode} online={online}/>}
       {view==='record' && <RecordRound onSave={handleSave}/>}
       {view==='cheat' && <CheatSheet/>}
 
@@ -859,7 +849,7 @@ function App() {
         <button className={`nav-btn ${view==='scoreboard'?'active':''}`} onClick={()=>setView('scoreboard')}>
           <span className="nav-icon">{icons.scoreboard}</span>Scoreboard
         </button>
-        <button className={`nav-btn ${view==='record'?'active':''}`} onClick={()=>setView('record')}>
+        <button className={`nav-btn record-btn ${view==='record'?'active':''}`} onClick={()=>setView('record')}>
           <span className="nav-icon">{icons.record}</span>Record
         </button>
         <button className={`nav-btn ${view==='cheat'?'active':''}`} onClick={()=>setView('cheat')}>
@@ -869,7 +859,6 @@ function App() {
 
       {toast && <div className="toast">{toast}</div>}
       {showBurst && <Burst/>}
-      {showSettings && <SettingsPanel settings={settings} setSettings={setSettings} onReset={handleReset} onClear={handleClear}/>}
     </>
   );
 }

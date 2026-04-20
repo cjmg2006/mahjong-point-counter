@@ -1,4 +1,4 @@
-const CACHE = 'mahjong-v1';
+const CACHE = 'mahjong-v2';
 const PRECACHE = ['/', '/index.html', '/manifest.json', '/icon.svg'];
 
 self.addEventListener('install', e => {
