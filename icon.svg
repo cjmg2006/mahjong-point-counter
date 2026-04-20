@@ -1,0 +1,14 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 512 512">
+  <!-- Background -->
+  <rect width="512" height="512" rx="96" fill="#2b2419"/>
+  <!-- Tile shape -->
+  <rect x="96" y="76" width="320" height="380" rx="28" fill="#fdf8ea"/>
+  <!-- Bottom shadow for 3D effect -->
+  <rect x="96" y="420" width="320" height="36" rx="0 0 28 28" fill="rgba(40,30,15,0.12)"/>
+  <!-- Dot grid — 2-dot pattern (top and bottom center) -->
+  <circle cx="256" cy="202" r="48" fill="#c14a2b"/>
+  <circle cx="256" cy="334" r="48" fill="#c14a2b"/>
+  <!-- Inner highlight on each dot -->
+  <circle cx="244" cy="190" r="14" fill="rgba(255,255,255,0.25)"/>
+  <circle cx="244" cy="322" r="14" fill="rgba(255,255,255,0.25)"/>
+</svg>

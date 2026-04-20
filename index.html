@@ -1,0 +1,886 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0">
+<title>Family Mahjong</title>
+
+<!-- PWA -->
+<link rel="manifest" href="manifest.json">
+<meta name="theme-color" content="#2b2419">
+<meta name="apple-mobile-web-app-capable" content="yes">
+<meta name="apple-mobile-web-app-status-bar-style" content="default">
+<meta name="apple-mobile-web-app-title" content="Mahjong">
+<link rel="apple-touch-icon" href="icon.svg">
+
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Fraunces:opsz,wght@9..144,400;9..144,500;9..144,600;9..144,700;9..144,800&family=DM+Mono:wght@400;500&family=Nunito:wght@500;600;700;800&display=swap" rel="stylesheet">
+
+<!-- Firebase -->
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-app-compat.js"></script>
+<script src="https://www.gstatic.com/firebasejs/10.12.0/firebase-database-compat.js"></script>
+
+<!-- React + Babel -->
+<script src="https://unpkg.com/react@18.3.1/umd/react.development.js" crossorigin></script>
+<script src="https://unpkg.com/react-dom@18.3.1/umd/react-dom.development.js" crossorigin></script>
+<script src="https://unpkg.com/@babel/standalone@7.29.0/babel.min.js" crossorigin></script>
+
+<style>
+  :root {
+    --paper: #f5ecd9;
+    --paper-2: #efe4c7;
+    --paper-line: #e4d6b1;
+    --ink: #2b2419;
+    --ink-soft: #6b5d44;
+    --ink-mute: #9e8e6f;
+    --felt: #1f4d3f;
+    --mummy: oklch(0.68 0.14 10);
+    --mummy-bg: oklch(0.93 0.05 10);
+    --daddy: oklch(0.60 0.12 200);
+    --daddy-bg: oklch(0.92 0.04 200);
+    --gordon: oklch(0.70 0.14 60);
+    --gordon-bg: oklch(0.93 0.05 60);
+    --glo: oklch(0.62 0.14 300);
+    --glo-bg: oklch(0.93 0.04 300);
+  }
+  * { box-sizing: border-box; -webkit-tap-highlight-color: transparent; }
+  html, body {
+    margin: 0; padding: 0;
+    font-family: 'Nunito', system-ui, sans-serif;
+    color: var(--ink);
+    background: var(--paper);
+    overscroll-behavior: none;
+  }
+  body {
+    background-image:
+      radial-gradient(ellipse at top, rgba(255,240,200,0.4), transparent 60%),
+      radial-gradient(circle at 20% 80%, rgba(200,150,90,0.08), transparent 50%),
+      url("data:image/svg+xml;utf8,<svg xmlns='http://www.w3.org/2000/svg' width='200' height='200'><filter id='n'><feTurbulence type='fractalNoise' baseFrequency='0.85' numOctaves='2' seed='5'/><feColorMatrix values='0 0 0 0 0.15  0 0 0 0 0.13  0 0 0 0 0.1  0 0 0 0.06 0'/></filter><rect width='200' height='200' filter='url(%23n)'/></svg>");
+    min-height: 100vh;
+  }
+  #root { max-width: 480px; margin: 0 auto; min-height: 100vh; position: relative; }
+  button { font-family: inherit; cursor: pointer; border: none; background: none; }
+  .serif { font-family: 'Fraunces', Georgia, serif; font-optical-sizing: auto; }
+  .mono { font-family: 'DM Mono', ui-monospace, monospace; }
+
+  /* Scoreboard */
+  .app-header {
+    padding: 18px 20px 6px;
+    display: flex; justify-content: space-between; align-items: flex-start;
+  }
+  .app-title { font-family: 'Fraunces', serif; font-weight: 700; font-size: 28px; letter-spacing: -0.02em; line-height: 1; }
+  .app-title em { font-style: italic; font-weight: 400; color: var(--ink-soft); }
+  .app-sub { font-size: 11px; color: var(--ink-mute); letter-spacing: 0.08em; text-transform: uppercase; margin-top: 4px; display: flex; align-items: center; gap: 5px; }
+  .settings-btn { padding: 6px; color: var(--ink-mute); border-radius: 8px; transition: color 0.15s; margin-top: 2px; }
+  .settings-btn:hover { color: var(--ink); }
+
+  /* Sync dot */
+  .sync-dot { width: 7px; height: 7px; border-radius: 50%; display: inline-block; flex-shrink: 0; }
+  .sync-dot.live { background: #3a7d4f; }
+  .sync-dot.offline { background: #c89a2b; }
+  .sync-dot.connecting { background: var(--ink-mute); animation: syncPulse 1.2s ease-in-out infinite; }
+  @keyframes syncPulse { 0%, 100% { opacity: 0.3; } 50% { opacity: 1; } }
+
+  .player-row {
+    margin: 10px 14px; border-radius: 18px; padding: 14px 16px 12px;
+    background: var(--paper-2); position: relative; overflow: hidden;
+    box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 2px 6px rgba(80,60,20,0.06);
+  }
+  .player-row::before { content: ''; position: absolute; left: 0; top: 0; bottom: 0; width: 5px; background: var(--pc); }
+  .player-head { display: flex; justify-content: space-between; align-items: baseline; margin-bottom: 8px; }
+  .player-name { font-family: 'Fraunces', serif; font-weight: 700; font-size: 22px; letter-spacing: -0.01em; color: var(--pc); }
+  .player-meta { font-size: 11px; color: var(--ink-mute); letter-spacing: 0.06em; text-transform: uppercase; }
+  .player-total { font-family: 'DM Mono', monospace; font-size: 24px; font-weight: 500; color: var(--ink); margin-left: 6px; }
+  .player-total small { font-size: 11px; color: var(--ink-mute); margin-left: 4px; font-weight: 400; }
+
+  .sessions { display: flex; flex-direction: column; gap: 6px; }
+  .session { display: flex; align-items: flex-start; gap: 10px; padding: 4px 0; }
+  .session-date { flex: 0 0 56px; font-family: 'DM Mono', monospace; font-size: 10px; color: var(--ink-mute); text-align: right; padding-top: 6px; line-height: 1.2; }
+  .session-date b { display: block; font-size: 14px; font-weight: 500; color: var(--ink-soft); }
+  .rounds-flow { flex: 1; display: flex; flex-wrap: wrap; gap: 5px 4px; align-items: center; min-height: 24px; }
+  .round-group { display: flex; gap: 2px; padding: 3px 5px 3px 4px; background: rgba(255,255,255,0.45); border-radius: 7px; align-items: center; }
+  .round-group.empty { color: var(--ink-mute); font-size: 11px; font-style: italic; background: transparent; padding: 3px 0; font-family: 'Fraunces', serif; }
+  .session-total { margin-left: auto; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--pc); font-weight: 500; padding: 3px 6px; background: var(--pc-bg); border-radius: 6px; align-self: center; }
+
+  /* Tile */
+  .tile { width: 11px; height: 15px; border-radius: 2px 2px 3px 3px; background: #fbf6e8; border: 1px solid rgba(60,40,20,0.3); border-bottom-width: 2px; position: relative; box-shadow: 0 1px 0 rgba(60,40,20,0.08); flex: none; }
+  .tile::after { content: ''; position: absolute; top: 2px; left: 50%; transform: translateX(-50%); width: 4px; height: 4px; border-radius: 50%; background: var(--pc); opacity: 0.85; }
+  .tile.big { width: 22px; height: 30px; border-radius: 3px 3px 5px 5px; border-width: 1.5px; border-bottom-width: 3px; }
+  .tile.big::after { top: 4px; width: 8px; height: 8px; }
+  .tile.new { animation: tilePop 0.6s cubic-bezier(0.34, 1.56, 0.64, 1); }
+  @keyframes tilePop { 0% { transform: translateY(-10px) rotate(-15deg); opacity: 0; } 60% { transform: translateY(2px) rotate(5deg); opacity: 1; } 100% { transform: translateY(0) rotate(0); opacity: 1; } }
+
+  /* Bottom nav */
+  .nav {
+    position: sticky; bottom: 0;
+    background: rgba(245,236,217,0.95);
+    backdrop-filter: blur(8px); -webkit-backdrop-filter: blur(8px);
+    border-top: 1px solid var(--paper-line);
+    display: grid; grid-template-columns: 1fr 1fr 1fr;
+    padding: 8px 8px calc(8px + env(safe-area-inset-bottom));
+    gap: 4px; z-index: 10;
+  }
+  .nav-btn { padding: 10px 4px 8px; border-radius: 12px; display: flex; flex-direction: column; align-items: center; gap: 4px; font-size: 11px; font-weight: 600; letter-spacing: 0.04em; color: var(--ink-mute); text-transform: uppercase; transition: all 0.15s; }
+  .nav-btn.active { background: var(--ink); color: var(--paper); }
+  .nav-icon { width: 20px; height: 20px; display: flex; align-items: center; justify-content: center; }
+
+  /* View */
+  .view { padding-bottom: 100px; min-height: 100vh; }
+  .view-title { font-family: 'Fraunces', serif; font-size: 32px; font-weight: 700; letter-spacing: -0.02em; padding: 18px 20px 4px; line-height: 1; }
+  .view-title em { font-style: italic; font-weight: 400; color: var(--ink-soft); }
+  .view-sub { padding: 0 20px 14px; color: var(--ink-soft); font-size: 14px; }
+  .section-label { padding: 14px 20px 6px; font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute); font-weight: 700; }
+
+  /* Record Round */
+  .winner-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 10px; padding: 0 14px; }
+  .winner-btn { padding: 20px 14px; border-radius: 16px; background: var(--pc-bg); color: var(--pc); font-family: 'Fraunces', serif; font-size: 22px; font-weight: 600; letter-spacing: -0.01em; text-align: left; position: relative; overflow: hidden; transition: transform 0.1s; border: 2px solid transparent; }
+  .winner-btn:active { transform: scale(0.97); }
+  .winner-btn.selected { background: var(--pc); color: #fdf8ea; box-shadow: 0 6px 16px -4px var(--pc); }
+  .winner-btn.selected .tile { background: #fdf8ea; border-color: rgba(255,255,255,0.4); }
+  .winner-btn.selected .tile::after { background: var(--pc); opacity: 1; }
+  .winner-btn .w-tiles { display: flex; gap: 3px; margin-top: 8px; min-height: 15px; }
+  .winner-btn .w-score { font-family: 'DM Mono', monospace; font-size: 11px; opacity: 0.7; margin-top: 2px; display: block; }
+  .stepper { display: flex; align-items: center; justify-content: center; margin: 10px 20px; background: var(--paper-2); border-radius: 18px; padding: 14px; gap: 18px; }
+  .step-btn { width: 52px; height: 52px; border-radius: 50%; background: var(--paper); border: 1.5px solid var(--paper-line); font-size: 24px; font-weight: 700; color: var(--ink); display: flex; align-items: center; justify-content: center; transition: transform 0.1s; font-family: 'Fraunces', serif; }
+  .step-btn:active { transform: scale(0.9); }
+  .step-btn:disabled { opacity: 0.3; }
+  .step-value { font-family: 'Fraunces', serif; font-size: 72px; font-weight: 700; line-height: 1; min-width: 100px; text-align: center; letter-spacing: -0.03em; }
+  .step-value-wrap { display: flex; flex-direction: column; align-items: center; }
+  .step-value-wrap small { font-size: 11px; letter-spacing: 0.1em; text-transform: uppercase; color: var(--ink-mute); font-weight: 700; margin-top: 2px; }
+  .quick-tai { display: flex; gap: 6px; padding: 0 20px; flex-wrap: wrap; }
+  .quick-tai button { padding: 6px 12px; background: var(--paper-2); border-radius: 99px; font-family: 'DM Mono', monospace; font-size: 12px; color: var(--ink-soft); border: 1px solid transparent; }
+  .quick-tai button.on { background: var(--ink); color: var(--paper); }
+  .date-input-wrap { margin: 6px 20px; padding: 14px 16px; background: var(--paper-2); border-radius: 14px; display: flex; justify-content: space-between; align-items: center; }
+  .date-input-wrap label { font-size: 13px; color: var(--ink-soft); font-weight: 600; }
+  .date-input-wrap input { background: transparent; border: none; font-family: 'DM Mono', monospace; font-size: 14px; color: var(--ink); text-align: right; outline: none; }
+  .save-btn { margin: 18px 14px 0; padding: 18px; width: calc(100% - 28px); border-radius: 18px; background: var(--ink); color: var(--paper); font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; letter-spacing: -0.01em; transition: transform 0.1s; box-shadow: 0 6px 0 rgba(40,30,15,0.9), 0 10px 20px -4px rgba(0,0,0,0.2); }
+  .save-btn:active { transform: translateY(3px); box-shadow: 0 3px 0 rgba(40,30,15,0.9); }
+  .save-btn:disabled { opacity: 0.4; }
+
+  /* Cheat Sheet */
+  .tai-group { margin: 10px 14px; background: var(--paper-2); border-radius: 18px; padding: 14px 16px; position: relative; }
+  .tai-badge { position: absolute; top: -8px; left: 14px; background: var(--ink); color: var(--paper); padding: 4px 10px 5px; border-radius: 99px; font-family: 'DM Mono', monospace; font-size: 11px; font-weight: 500; letter-spacing: 0.04em; }
+  .tai-badge.hot { background: #c14a2b; }
+  .tai-badge.epic { background: linear-gradient(135deg, #c14a2b, #8b2e6f); color: #fff5df; }
+  .tai-badge span { opacity: 0.7; margin-left: 4px; }
+  .hand-block { padding: 12px 0 14px; border-bottom: 1px dashed var(--paper-line); }
+  .hand-block:last-child { border-bottom: none; padding-bottom: 4px; }
+  .hand-block:first-child { padding-top: 8px; }
+  .hand-title { display: flex; align-items: baseline; gap: 8px; flex-wrap: wrap; }
+  .hand-name { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 500; letter-spacing: -0.005em; color: var(--ink); }
+  .hand-cn { font-size: 16px; font-weight: 500; color: var(--ink-soft); letter-spacing: 0.02em; }
+  .hand-py { font-size: 10px; color: var(--ink-mute); letter-spacing: 0.02em; font-style: italic; }
+  .hand-desc { font-size: 12px; color: var(--ink-mute); margin-top: 2px; font-family: 'Nunito', sans-serif; }
+
+  /* Mahjong tile renderer */
+  .mj-hand { display: flex; flex-wrap: wrap; gap: 8px 10px; margin-top: 10px; padding: 10px; background: var(--felt); background-image: radial-gradient(circle at 30% 20%, rgba(255,255,255,0.06), transparent 60%); border-radius: 10px; border: 1px solid rgba(0,0,0,0.2); box-shadow: 0 2px 0 rgba(0,0,0,0.15) inset; }
+  .mj-group { display: flex; gap: 2px; }
+  .mj { width: 26px; height: 34px; border-radius: 3px 3px 5px 5px; background: linear-gradient(180deg, #fdf8ea 0%, #f2e9d2 100%); border: 1px solid rgba(40,30,15,0.55); border-bottom-width: 2px; box-shadow: inset 0 1px 0 rgba(255,255,255,0.9), 0 1px 0 rgba(0,0,0,0.2); display: flex; align-items: center; justify-content: center; flex: none; font-family: 'Fraunces', serif; position: relative; }
+  .mj-suit-face { position: relative; width: 74%; height: 80%; display: block; }
+  .mj-dot { position: absolute; width: 26%; height: 19%; border-radius: 50%; transform: translate(-50%, -50%); box-shadow: inset 0 1px 0 rgba(255,255,255,0.4); }
+  .mj-stick { border-radius: 1px; min-height: 3px; box-shadow: inset 0 0 0 0.5px rgba(0,0,0,0.25); }
+  .mj-c { flex-direction: column; gap: 1px; padding-top: 2px; }
+  .mj-num { font-size: 15px; font-weight: 700; line-height: 1; letter-spacing: -0.02em; }
+  .mj-wan { font-size: 11px; font-weight: 700; line-height: 1; margin-top: 1px; }
+  .mj-wind-letter { font-family: 'Fraunces', serif; font-size: 17px; font-weight: 700; line-height: 1; }
+  .mj-drg-char { font-size: 16px; font-weight: 700; line-height: 1; }
+  .mj-drg-empty { width: 62%; height: 68%; border: 1.5px solid #4a6d8a; border-radius: 2px; background: transparent; }
+  .mj-flower { flex-direction: column; gap: 0; padding-top: 2px; }
+  .mj-flower-num { font-family: 'Fraunces', serif; font-size: 10px; font-weight: 700; line-height: 1; }
+  .mj-flower-img { font-size: 14px; line-height: 1; margin-top: 1px; }
+
+  /* View toggle */
+  .view-toggle { display: flex; margin: 6px 14px 2px; padding: 4px; background: var(--paper-2); border-radius: 99px; gap: 2px; }
+  .view-toggle button { flex: 1; padding: 8px 12px; border-radius: 99px; font-family: 'Fraunces', serif; font-size: 14px; font-weight: 600; color: var(--ink-mute); letter-spacing: -0.01em; transition: all 0.2s; }
+  .view-toggle button.on { background: var(--ink); color: var(--paper); box-shadow: 0 2px 8px -2px rgba(40,30,15,0.4); }
+
+  /* By-day card */
+  .day-row { margin: 10px 14px; padding: 14px 16px 12px; background: var(--paper-2); border-radius: 18px; box-shadow: 0 1px 0 rgba(255,255,255,0.5) inset, 0 2px 6px rgba(80,60,20,0.06); position: relative; overflow: hidden; }
+  .day-head { display: flex; justify-content: space-between; align-items: flex-start; padding-bottom: 10px; margin-bottom: 8px; border-bottom: 1px dashed var(--paper-line); gap: 10px; }
+  .day-date { font-size: 20px; font-weight: 700; letter-spacing: -0.02em; line-height: 1.1; }
+  .day-sub { font-size: 10px; color: var(--ink-mute); letter-spacing: 0.04em; margin-top: 2px; }
+  .day-winner { text-align: right; display: flex; flex-direction: column; align-items: flex-end; line-height: 1.1; }
+  .day-winner small { font-size: 9px; letter-spacing: 0.14em; font-weight: 700; color: var(--ink-mute); margin-bottom: 2px; }
+  .day-winner b { font-size: 16px; font-weight: 700; letter-spacing: -0.01em; }
+  .day-winner span { font-size: 11px; margin-top: 1px; }
+  .day-players { display: flex; flex-direction: column; gap: 4px; }
+  .day-player { display: flex; align-items: center; gap: 10px; padding: 4px 0; }
+  .day-player-name { flex: 0 0 68px; font-family: 'Fraunces', serif; font-size: 14px; font-weight: 600; color: var(--pc); display: flex; align-items: center; gap: 6px; }
+  .dp-dot { width: 6px; height: 6px; border-radius: 50%; background: var(--pc); flex: none; }
+  .day-player .rounds-flow { flex: 1; min-height: 20px; }
+  .day-player-total { flex: 0 0 36px; text-align: right; font-size: 13px; color: var(--pc); font-weight: 500; }
+
+  /* Loading */
+  .loading { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; gap: 16px; color: var(--ink-soft); }
+  .loading-tiles { display: flex; gap: 4px; }
+  .loading-tiles .tile { --pc: var(--ink); width: 16px; height: 22px; animation: tileBob 1.2s ease-in-out infinite; }
+  .loading-tiles .tile:nth-child(2) { animation-delay: 0.15s; --pc: var(--mummy); }
+  .loading-tiles .tile:nth-child(3) { animation-delay: 0.3s;  --pc: var(--daddy); }
+  .loading-tiles .tile:nth-child(4) { animation-delay: 0.45s; --pc: var(--gordon); }
+  .loading-tiles .tile:nth-child(5) { animation-delay: 0.6s;  --pc: var(--glo); }
+  @keyframes tileBob { 0%, 100% { transform: translateY(0); } 50% { transform: translateY(-8px); } }
+
+  /* Confetti burst */
+  .burst { position: fixed; top: 0; left: 0; right: 0; bottom: 0; pointer-events: none; z-index: 100; overflow: hidden; }
+  .burst .confetti { position: absolute; width: 10px; height: 14px; top: 50%; left: 50%; border-radius: 1px; animation: confettiFall 1.2s ease-out forwards; }
+  @keyframes confettiFall { 0% { transform: translate(0,0) rotate(0); opacity: 1; } 100% { transform: translate(var(--dx), var(--dy)) rotate(var(--rot)); opacity: 0; } }
+
+  /* Toast */
+  .toast { position: fixed; bottom: 90px; left: 50%; transform: translateX(-50%); background: var(--ink); color: var(--paper); padding: 10px 18px; border-radius: 99px; font-size: 14px; font-weight: 600; font-family: 'Fraunces', serif; z-index: 50; animation: toastIn 0.3s, toastOut 0.3s 1.7s forwards; box-shadow: 0 8px 24px rgba(0,0,0,0.3); max-width: 85%; text-align: center; white-space: nowrap; }
+  @keyframes toastIn { from { transform: translate(-50%, 20px); opacity: 0; } }
+  @keyframes toastOut { to { transform: translate(-50%, 10px); opacity: 0; } }
+
+  /* Settings panel */
+  .settings-panel { position: fixed; bottom: 90px; right: 14px; background: #fdf8ea; border: 1px solid var(--paper-line); border-radius: 14px; padding: 12px 14px; z-index: 40; box-shadow: 0 12px 30px -8px rgba(0,0,0,0.2); max-width: 240px; font-size: 12px; }
+  .settings-panel h4 { font-family: 'Fraunces', serif; margin: 0 0 8px; font-size: 14px; }
+  .settings-row { display: flex; justify-content: space-between; align-items: center; padding: 4px 0; gap: 10px; }
+  .settings-row label { color: var(--ink-soft); }
+  .settings-row button { background: var(--paper-2); padding: 4px 8px; border-radius: 6px; font-size: 11px; font-weight: 600; }
+  .settings-row button.on { background: var(--ink); color: var(--paper); }
+
+  /* Setup screen */
+  .setup-screen { display: flex; flex-direction: column; align-items: center; justify-content: center; min-height: 100vh; padding: 32px 24px; gap: 20px; text-align: center; }
+  .setup-card { background: var(--paper-2); border-radius: 18px; padding: 24px; text-align: left; max-width: 400px; width: 100%; line-height: 1.7; }
+  .setup-card h2 { font-family: 'Fraunces', serif; font-size: 20px; font-weight: 700; margin: 0 0 14px; }
+  .setup-card ol { margin: 0; padding: 0 0 0 20px; color: var(--ink-soft); font-size: 14px; }
+  .setup-card li { margin-bottom: 8px; }
+  .setup-card code { background: rgba(0,0,0,0.08); padding: 1px 5px; border-radius: 4px; font-family: 'DM Mono', monospace; font-size: 12px; }
+  .setup-card strong { color: var(--ink); }
+  .setup-rules { background: var(--paper-2); border-radius: 14px; padding: 14px 16px; max-width: 400px; width: 100%; font-size: 13px; color: var(--ink-soft); }
+  .setup-rules h3 { font-family: 'Fraunces', serif; font-size: 14px; margin: 0 0 8px; color: var(--ink); }
+  .setup-rules pre { margin: 6px 0 0; font-family: 'DM Mono', monospace; font-size: 12px; background: rgba(0,0,0,0.06); padding: 8px 10px; border-radius: 8px; overflow-x: auto; }
+</style>
+</head>
+<body>
+<div id="root"></div>
+
+<script>
+// ---- FIREBASE CONFIG — replace with your project's values ----
+// 1. Go to console.firebase.google.com
+// 2. Create a project → Add a web app → copy the config below
+// 3. Enable Realtime Database (Build → Realtime Database → Create database → Start in test mode)
+const FIREBASE_CONFIG = {
+  apiKey:            "AIzaSyBta_Rem9j7PBvsrBWrIa-PWtKWyzyA9AA",
+  authDomain:        "chua-family-mahjong.firebaseapp.com",
+  databaseURL:       "https://chua-family-mahjong-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId:         "chua-family-mahjong",
+  storageBucket:     "chua-family-mahjong.firebasestorage.app",
+  messagingSenderId: "323343094304",
+  appId:             "1:323343094304:web:ca501d051e1d588fb82245",
+  measurementId:     "G-FR9RXWCGN7",
+};
+
+const FIREBASE_READY = !FIREBASE_CONFIG.apiKey.startsWith('PASTE_');
+
+if (FIREBASE_READY) {
+  firebase.initializeApp(FIREBASE_CONFIG);
+}
+</script>
+
+<script type="text/babel" data-presets="react">
+const { useState, useEffect, useMemo } = React;
+
+const PLAYERS = [
+  { key: 'mummy',  name: 'Mummy',  color: 'var(--mummy)',  bg: 'var(--mummy-bg)'  },
+  { key: 'daddy',  name: 'Daddy',  color: 'var(--daddy)',  bg: 'var(--daddy-bg)'  },
+  { key: 'gordon', name: 'Gordon', color: 'var(--gordon)', bg: 'var(--gordon-bg)' },
+  { key: 'glo',    name: 'Glo',    color: 'var(--glo)',    bg: 'var(--glo-bg)'    },
+];
+
+const HANDS = [
+  { tai: 0,  name: 'Chicken Hand',           cn: '鸡胡',        py: 'Jī Hú',
+    desc: 'A bare winning hand with no scoring elements',
+    example: '2c 3c 4c | 5b 6b 7b | 3d 4d 5d | 8d 8d 8d | W_ W_' },
+  { tai: 1,  name: 'Ping Hu (All Sequences)', cn: '平胡',        py: 'Píng Hú',
+    desc: 'All runs, non-scoring pair, winning on a two-sided wait',
+    example: '1c 2c 3c | 4b 5b 6b | 3d 4d 5d | 6d 7d 8d | 5b 5b' },
+  { tai: 1,  name: 'Seat / Prevailing Wind',  cn: '门风 / 圈风', py: 'Mén Fēng',
+    desc: 'Pong of your seat wind or the round wind — 1 tai each',
+    example: '2c 3c 4c | 5b 6b 7b | 3d 4d 5d | E_ E_ E_ | 9d 9d' },
+  { tai: 1,  name: 'Dragon Pong',             cn: '番牌 (中/发/白)', py: 'Fān Pái',
+    desc: 'Pong of red, green or white dragons — 1 tai per dragon',
+    example: '2c 3c 4c | 5b 6b 7b | 3d 4d 5d | R_ R_ R_ | 8d 8d' },
+  { tai: 1,  name: 'Animal / Flower',         cn: '花牌',        py: 'Huā Pái',
+    desc: 'Each season / flower tile drawn is worth 1 tai',
+    example: '1c 2c 3c | 4b 5b 6b | 7d 8d 9d | 2c 2c 2c | 5d 5d · F1 F2' },
+  { tai: 2,  name: 'Half Flush',              cn: '混一色',      py: 'Hùn Yī Sè',
+    desc: 'One suit plus honour tiles',
+    example: '1d 2d 3d | 4d 5d 6d | 7d 8d 9d | E_ E_ E_ | 2d 2d' },
+  { tai: 2,  name: 'All Pong',                cn: '碰碰胡',      py: 'Pèng Pèng Hú',
+    desc: 'Four triplets and a pair — no runs',
+    example: '3c 3c 3c | 6b 6b 6b | 2d 2d 2d | 8d 8d 8d | S_ S_' },
+  { tai: 4,  name: 'Full Flush',              cn: '清一色',      py: 'Qīng Yī Sè',
+    desc: 'One suit only, no honours',
+    example: '1d 2d 3d | 3d 4d 5d | 5d 6d 7d | 7d 8d 9d | 2d 2d' },
+  { tai: 4,  name: 'Mixed Terminals',         cn: '混幺九',      py: 'Hùn Yāo Jiǔ',
+    desc: 'Every set contains a 1, 9 or honour tile',
+    example: '1c 1c 1c | 9b 9b 9b | 1d 1d 1d | E_ E_ E_ | R_ R_' },
+  { tai: 4,  name: 'All Honours',             cn: '字一色',      py: 'Zì Yī Sè',
+    desc: 'Only winds and dragons — no suits',
+    example: 'E_ E_ E_ | S_ S_ S_ | W_ W_ W_ | R_ R_ R_ | G_ G_' },
+  { tai: 4,  name: 'All Terminals',           cn: '清幺九',      py: 'Qīng Yāo Jiǔ',
+    desc: 'Only 1s and 9s — no honours, no middles',
+    example: '1c 1c 1c | 9c 9c 9c | 1b 1b 1b | 9d 9d 9d | 1d 1d' },
+  { tai: 4,  name: 'Three Great Scholars',    cn: '大三元',      py: 'Dà Sān Yuán',
+    desc: 'All three dragon pongs (red, green, white)',
+    example: 'R_ R_ R_ | G_ G_ G_ | Wh Wh Wh | 2c 3c 4c | 5d 5d' },
+  { tai: 4,  name: 'Little Four Blessings',   cn: '小四喜',      py: 'Xiǎo Sì Xǐ',
+    desc: 'Three wind pongs plus a pair of the fourth',
+    example: 'E_ E_ E_ | S_ S_ S_ | W_ W_ W_ | 6b 6b 6b | N_ N_' },
+  { tai: 4,  name: 'Four Concealed Pongs',    cn: '四暗刻',      py: 'Sì Àn Kè',
+    desc: 'Four pongs, all self-drawn (concealed), plus any pair',
+    example: '2c 2c 2c | 5b 5b 5b | 7d 7d 7d | 9b 9b 9b | R_ R_' },
+  { tai: 4,  name: 'Thirteen Wonders',        cn: '十三幺',      py: 'Shí Sān Yāo',
+    desc: 'One each of every terminal & honour, plus any pair of them',
+    example: '1c 9c 1b | 9b 1d 9d | E_ S_ W_ | N_ R_ G_ | Wh Wh' },
+  { tai: 4,  name: 'Heavenly / Earthly Hand', cn: '天胡 / 地胡', py: 'Tiān Hú / Dì Hú',
+    desc: 'Dealer wins on first draw / non-dealer wins on first discard',
+    example: '1c 2c 3c | 4b 5b 6b | 7d 8d 9d | R_ R_ R_ | E_ E_' },
+  { tai: 8,  name: 'Great Four Blessings',    cn: '大四喜',      py: 'Dà Sì Xǐ',
+    desc: 'All four wind pongs — caps out the round at 8 tai',
+    example: 'E_ E_ E_ | S_ S_ S_ | W_ W_ W_ | N_ N_ N_ | R_ R_' },
+];
+
+function daysAgo(n) {
+  const d = new Date(); d.setDate(d.getDate() - n);
+  return d.toISOString().slice(0, 10);
+}
+
+function sampleData() {
+  return [
+    { id: 1,  date: daysAgo(18), player: 'daddy',  points: 3 },
+    { id: 2,  date: daysAgo(18), player: 'gordon', points: 1 },
+    { id: 3,  date: daysAgo(18), player: 'mummy',  points: 7 },
+    { id: 4,  date: daysAgo(18), player: 'gordon', points: 3 },
+    { id: 5,  date: daysAgo(18), player: 'glo',    points: 1 },
+    { id: 6,  date: daysAgo(18), player: 'mummy',  points: 3 },
+    { id: 7,  date: daysAgo(11), player: 'glo',    points: 3 },
+    { id: 8,  date: daysAgo(11), player: 'glo',    points: 10 },
+    { id: 9,  date: daysAgo(11), player: 'daddy',  points: 1 },
+    { id: 10, date: daysAgo(11), player: 'gordon', points: 1 },
+    { id: 11, date: daysAgo(11), player: 'mummy',  points: 3 },
+    { id: 12, date: daysAgo(11), player: 'glo',    points: 7 },
+    { id: 13, date: daysAgo(5),  player: 'gordon', points: 13 },
+    { id: 14, date: daysAgo(5),  player: 'daddy',  points: 1 },
+    { id: 15, date: daysAgo(5),  player: 'daddy',  points: 3 },
+    { id: 16, date: daysAgo(5),  player: 'mummy',  points: 1 },
+    { id: 17, date: daysAgo(5),  player: 'gordon', points: 3 },
+    { id: 18, date: daysAgo(5),  player: 'mummy',  points: 7 },
+    { id: 19, date: daysAgo(1),  player: 'daddy',  points: 3 },
+    { id: 20, date: daysAgo(1),  player: 'mummy',  points: 3 },
+    { id: 21, date: daysAgo(1),  player: 'glo',    points: 1 },
+    { id: 22, date: daysAgo(1),  player: 'gordon', points: 7 },
+    { id: 23, date: daysAgo(1),  player: 'daddy',  points: 3 },
+    { id: 24, date: daysAgo(1),  player: 'mummy',  points: 1 },
+    { id: 25, date: daysAgo(1),  player: 'glo',    points: 3 },
+  ];
+}
+
+// ----- Primitives -----
+
+function Tile({ big, className = '' }) {
+  return <span className={`tile ${big ? 'big' : ''} ${className}`} />;
+}
+
+function PlayerStyle({ player, children }) {
+  return <div style={{ '--pc': player.color, '--pc-bg': player.bg }}>{children}</div>;
+}
+
+function RoundTiles({ rounds, highlightIds = [] }) {
+  if (!rounds.length) return <span className="round-group empty">no rounds yet</span>;
+  return (
+    <>
+      {rounds.map(r => (
+        <span key={r.id} className="round-group" title={`${r.points} tai`}>
+          {Array.from({ length: Math.max(1, r.points) }).map((_, i) => (
+            <Tile key={i} className={highlightIds.includes(r.id) ? 'new' : ''} />
+          ))}
+          {r.points === 0 && <span className="mono" style={{fontSize:9,color:'var(--ink-mute)',padding:'0 2px'}}>0</span>}
+        </span>
+      ))}
+    </>
+  );
+}
+
+// ----- Scoreboard -----
+
+function SyncIndicator({ online }) {
+  const cls = online === null ? 'connecting' : online ? 'live' : 'offline';
+  const label = online === null ? 'Connecting…' : online ? 'Live' : 'Offline — saves when reconnected';
+  return <span className={`sync-dot ${cls}`} title={label} />;
+}
+
+function Scoreboard({ rounds, newIds, mode, setMode, online }) {
+  const sessions = useMemo(() => {
+    const byDate = {};
+    rounds.forEach(r => { if (!byDate[r.date]) byDate[r.date] = []; byDate[r.date].push(r); });
+    return Object.keys(byDate).sort().reverse().map(date => ({ date, rounds: byDate[date] }));
+  }, [rounds]);
+
+  const totals = useMemo(() => {
+    const t = {}; PLAYERS.forEach(p => { t[p.key] = 0; });
+    rounds.forEach(r => { t[r.player] = (t[r.player] || 0) + r.points; });
+    return t;
+  }, [rounds]);
+
+  const fmtDate = (d) => {
+    const dt = new Date(d + 'T12:00:00');
+    const today = new Date(); today.setHours(12,0,0,0);
+    const diff = Math.round((today - dt) / 86400000);
+    if (diff === 0) return { top: 'Today', sub: '' };
+    if (diff === 1) return { top: 'Yday', sub: '' };
+    return { top: dt.toLocaleDateString('en', { month: 'short', day: 'numeric' }).split(' ')[1], sub: dt.toLocaleDateString('en', { month: 'short' }) };
+  };
+
+  const fmtDateLong = (d) => {
+    const dt = new Date(d + 'T12:00:00');
+    const today = new Date(); today.setHours(12,0,0,0);
+    const diff = Math.round((today - dt) / 86400000);
+    if (diff === 0) return 'Today';
+    if (diff === 1) return 'Yesterday';
+    return dt.toLocaleDateString('en', { weekday: 'short', month: 'short', day: 'numeric' });
+  };
+
+  return (
+    <div className="view">
+      <div className="app-header">
+        <div>
+          <div className="app-title serif">Family <em>Mahjong</em></div>
+          <div className="app-sub">
+            {sessions.length} sessions · {rounds.length} rounds
+            <SyncIndicator online={online} />
+          </div>
+        </div>
+      </div>
+
+      <div className="view-toggle">
+        <button className={mode === 'player' ? 'on' : ''} onClick={() => setMode('player')}>By player</button>
+        <button className={mode === 'day' ? 'on' : ''} onClick={() => setMode('day')}>By day</button>
+      </div>
+
+      {mode === 'player' && PLAYERS.map(p => {
+        const playerSessions = sessions.map(s => ({ ...s, rounds: s.rounds.filter(r => r.player === p.key) }));
+        const active = playerSessions.filter(s => s.rounds.length > 0);
+        return (
+          <PlayerStyle key={p.key} player={p}>
+            <div className="player-row">
+              <div className="player-head">
+                <div><span className="player-name">{p.name}</span></div>
+                <div>
+                  <span className="player-meta mono">{rounds.filter(r => r.player === p.key).length} wins</span>
+                  <span className="player-total">{totals[p.key]}<small>tai</small></span>
+                </div>
+              </div>
+              <div className="sessions">
+                {active.length === 0 && (
+                  <div className="session">
+                    <div className="session-date"><b>—</b></div>
+                    <div className="rounds-flow"><span className="round-group empty">no wins yet · the comeback starts now</span></div>
+                  </div>
+                )}
+                {active.map(s => {
+                  const total = s.rounds.reduce((a, r) => a + r.points, 0);
+                  const d = fmtDate(s.date);
+                  return (
+                    <div key={s.date} className="session">
+                      <div className="session-date"><b>{d.top}</b>{d.sub}</div>
+                      <div className="rounds-flow"><RoundTiles rounds={s.rounds} highlightIds={newIds} /></div>
+                      <span className="session-total mono">+{total}</span>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          </PlayerStyle>
+        );
+      })}
+
+      {mode === 'day' && sessions.map(s => {
+        const tByP = {}; PLAYERS.forEach(p => { tByP[p.key] = 0; });
+        s.rounds.forEach(r => { tByP[r.player] += r.points; });
+        const total = s.rounds.reduce((a, r) => a + r.points, 0);
+        const topKey = Object.keys(tByP).reduce((a, b) => tByP[a] >= tByP[b] ? a : b);
+        const topPlayer = PLAYERS.find(p => p.key === topKey);
+        return (
+          <div key={s.date} className="day-row">
+            <div className="day-head">
+              <div>
+                <div className="day-date serif">{fmtDateLong(s.date)}</div>
+                <div className="day-sub mono">{s.date} · {s.rounds.length} rounds · {total} tai</div>
+              </div>
+              <div className="day-winner" style={{ color: topPlayer.color }}>
+                <small>TOP</small><b className="serif">{topPlayer.name}</b>
+                <span className="mono">+{tByP[topKey]}</span>
+              </div>
+            </div>
+            <div className="day-players">
+              {PLAYERS.map(p => {
+                const pr = s.rounds.filter(r => r.player === p.key);
+                return (
+                  <PlayerStyle key={p.key} player={p}>
+                    <div className="day-player">
+                      <div className="day-player-name"><span className="dp-dot" />{p.name}</div>
+                      <div className="rounds-flow">
+                        {pr.length === 0 ? <span className="round-group empty">—</span> : <RoundTiles rounds={pr} highlightIds={newIds} />}
+                      </div>
+                      <div className="day-player-total mono">{tByP[p.key] > 0 ? `+${tByP[p.key]}` : '·'}</div>
+                    </div>
+                  </PlayerStyle>
+                );
+              })}
+            </div>
+          </div>
+        );
+      })}
+
+      <div style={{textAlign:'center',fontSize:11,color:'var(--ink-mute)',padding:'18px 20px 8px',letterSpacing:'0.05em',fontStyle:'italic'}} className="serif">
+        · one tile, one tai ·
+      </div>
+    </div>
+  );
+}
+
+// ----- Record Round -----
+
+function RecordRound({ onSave }) {
+  const [winner, setWinner] = useState(null);
+  const [points, setPoints] = useState(1);
+  const [date, setDate] = useState(new Date().toISOString().slice(0, 10));
+  const quick = [0, 1, 3, 7, 10, 13];
+
+  return (
+    <div className="view">
+      <div className="view-title serif">Log <em>a win</em></div>
+      <div className="view-sub">Who took the round?</div>
+
+      <div className="winner-grid">
+        {PLAYERS.map(p => (
+          <PlayerStyle key={p.key} player={p}>
+            <button className={`winner-btn ${winner === p.key ? 'selected' : ''}`} onClick={() => setWinner(p.key)}>
+              {p.name}
+              <span className="w-tiles">
+                {winner === p.key && Array.from({ length: Math.min(points, 6) }).map((_, i) => <Tile key={i} />)}
+                {winner === p.key && points > 6 && <span className="mono" style={{fontSize:11,alignSelf:'center',marginLeft:4,opacity:0.8}}>+{points-6}</span>}
+              </span>
+              <span className="w-score">{winner === p.key ? `${points} tai` : 'tap to pick'}</span>
+            </button>
+          </PlayerStyle>
+        ))}
+      </div>
+
+      <div className="section-label">Points · tai</div>
+      <div className="stepper">
+        <button className="step-btn" onClick={() => setPoints(Math.max(0, points-1))} disabled={points<=0}>−</button>
+        <div className="step-value-wrap">
+          <div className="step-value serif">{points}</div>
+          <small>tai</small>
+        </div>
+        <button className="step-btn" onClick={() => setPoints(Math.min(26, points+1))}>+</button>
+      </div>
+      <div className="quick-tai">
+        {quick.map(q => <button key={q} className={points===q?'on':''} onClick={()=>setPoints(q)}>{q} tai</button>)}
+      </div>
+
+      <div className="section-label">Date</div>
+      <div className="date-input-wrap">
+        <label>When was this round?</label>
+        <input type="date" value={date} onChange={e=>setDate(e.target.value)} max={new Date().toISOString().slice(0,10)} />
+      </div>
+
+      <button className="save-btn" disabled={!winner} onClick={() => winner && onSave({ player: winner, points, date })}>
+        {winner ? `Save · ${PLAYERS.find(p=>p.key===winner).name} +${points}` : 'Pick a winner first'}
+      </button>
+    </div>
+  );
+}
+
+// ----- Mahjong tile renderer (Cheat Sheet) -----
+
+function MjTile({ code }) {
+  const flowerMap = {
+    F1:{emoji:'🌸',color:'#c14a2b',num:1}, F2:{emoji:'🌿',color:'#3a7d4f',num:2},
+    F3:{emoji:'🎋',color:'#3a7d4f',num:3}, F4:{emoji:'🌼',color:'#c89a2b',num:4},
+    A1:{emoji:'🐱',color:'#c14a2b',num:1}, A2:{emoji:'🐭',color:'#2b2419',num:2},
+    A3:{emoji:'🐓',color:'#c14a2b',num:3}, A4:{emoji:'🐛',color:'#3a7d4f',num:4},
+  };
+  const honourMap = {
+    E_:{text:'東',kind:'wind'}, S_:{text:'南',kind:'wind'}, W_:{text:'西',kind:'wind'}, N_:{text:'北',kind:'wind'},
+    R_:{kind:'dragonR'}, G_:{kind:'dragonG'}, Wh:{kind:'dragonW'},
+  };
+  if (flowerMap[code]) {
+    const f = flowerMap[code];
+    return <span className="mj mj-flower"><span className="mj-flower-num" style={{color:f.color}}>{f.num}</span><span className="mj-flower-img">{f.emoji}</span></span>;
+  }
+  if (honourMap[code]) {
+    const h = honourMap[code];
+    if (h.kind==='wind') return <span className="mj"><span className="mj-wind-letter serif" style={{color:'#2b2419'}}>{h.text}</span></span>;
+    if (h.kind==='dragonR') return <span className="mj"><span className="mj-drg-char serif" style={{color:'#c14a2b'}}>中</span></span>;
+    if (h.kind==='dragonG') return <span className="mj"><span className="mj-drg-char serif" style={{color:'#3a7d4f'}}>發</span></span>;
+    if (h.kind==='dragonW') return <span className="mj"><span className="mj-drg-empty"/></span>;
+  }
+  const rank = code[0], suit = code[1];
+  if (suit==='d') return <span className="mj"><Dots n={parseInt(rank,10)} color="#2464a0"/></span>;
+  if (suit==='b') return <span className="mj"><Sticks n={parseInt(rank,10)} color="#3a7d4f"/></span>;
+  return <span className="mj mj-c"><span className="mj-num serif" style={{color:'#2b2419'}}>{rank}</span><span className="mj-wan serif" style={{color:'#c14a2b'}}>萬</span></span>;
+}
+
+function Dots({ n, color }) {
+  const layouts = {
+    1:[[50,50]], 2:[[50,25],[50,75]], 3:[[25,25],[50,50],[75,75]],
+    4:[[25,25],[75,25],[25,75],[75,75]], 5:[[25,25],[75,25],[50,50],[25,75],[75,75]],
+    6:[[25,20],[75,20],[25,50],[75,50],[25,80],[75,80]],
+    7:[[25,20],[75,20],[25,50],[75,50],[25,80],[50,80],[75,80]],
+    8:[[25,15],[75,15],[25,40],[75,40],[25,65],[75,65],[25,90],[75,90]],
+    9:[[25,20],[50,20],[75,20],[25,50],[50,50],[75,50],[25,80],[50,80],[75,80]],
+  };
+  return (
+    <span className="mj-suit-face">
+      {(layouts[n]||[[50,50]]).map((p,i) => <span key={i} className="mj-dot" style={{left:`${p[0]}%`,top:`${p[1]}%`,background:color}}/>)}
+    </span>
+  );
+}
+
+function Sticks({ n, color }) {
+  const cols = n<=4 ? n : 3;
+  return (
+    <span className="mj-suit-face" style={{display:'grid',gridTemplateColumns:`repeat(${cols},1fr)`,gridTemplateRows:`repeat(${Math.ceil(n/cols)},1fr)`,gap:1,padding:'10% 12%'}}>
+      {Array.from({length:n}).map((_,i) => <span key={i} className="mj-stick" style={{background:color}}/>)}
+    </span>
+  );
+}
+
+function HandExample({ example }) {
+  const groups = example.split('|').map(g => g.trim().split(/\s+/).filter(c => c && c!=='·'));
+  return (
+    <div className="mj-hand">
+      {groups.map((grp,gi) => <span key={gi} className="mj-group">{grp.map((code,ci) => <MjTile key={ci} code={code}/>)}</span>)}
+    </div>
+  );
+}
+
+// ----- Cheat Sheet -----
+
+function CheatSheet() {
+  const groups = useMemo(() => {
+    const g = {};
+    HANDS.forEach(h => { if (!g[h.tai]) g[h.tai]=[]; g[h.tai].push(h); });
+    return Object.keys(g).map(Number).sort((a,b)=>a-b).map(tai=>({tai,hands:g[tai]}));
+  }, []);
+
+  return (
+    <div className="view">
+      <div className="view-title serif">Cheat <em>sheet</em></div>
+      <div className="view-sub">Common hands grouped by tai, with example winning combinations.</div>
+      {groups.map(g => (
+        <div key={g.tai} className="tai-group" style={{marginTop:22}}>
+          <div className={`tai-badge ${g.tai>=8?'epic':g.tai>=3?'hot':''}`}>
+            {g.tai} TAI<span>·{g.tai===0?' nada':g.tai===8?' cap':` ${'★'.repeat(Math.min(Math.ceil(g.tai/3),4))}`}</span>
+          </div>
+          {g.hands.map((h,i) => (
+            <div key={i} className="hand-block">
+              <div className="hand-title">
+                <span className="hand-name serif">{h.name}</span>
+                <span className="hand-cn serif">{h.cn}</span>
+                <span className="hand-py mono">{h.py}</span>
+              </div>
+              <div className="hand-desc">{h.desc}</div>
+              <HandExample example={h.example}/>
+            </div>
+          ))}
+        </div>
+      ))}
+      <div style={{textAlign:'center',fontSize:11,color:'var(--ink-mute)',padding:'22px 20px 8px',letterSpacing:'0.05em'}} className="serif">
+        <em>house rules override everything · don't fight mummy</em>
+      </div>
+    </div>
+  );
+}
+
+// ----- Nav icons -----
+
+const icons = {
+  scoreboard: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="3" y="4" width="4" height="12" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="8" y="2" width="4" height="14" rx="1" stroke="currentColor" strokeWidth="1.5"/><rect x="13" y="7" width="4" height="9" rx="1" stroke="currentColor" strokeWidth="1.5"/></svg>,
+  record: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><circle cx="10" cy="10" r="7" stroke="currentColor" strokeWidth="1.5"/><path d="M10 6v8M6 10h8" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+  cheat: <svg width="20" height="20" viewBox="0 0 20 20" fill="none"><rect x="4" y="3" width="12" height="14" rx="1.5" stroke="currentColor" strokeWidth="1.5"/><path d="M7 7h6M7 10h6M7 13h4" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/></svg>,
+};
+
+// ----- Confetti burst -----
+
+function Burst() {
+  return (
+    <div className="burst">
+      {Array.from({length:24}).map((_,i) => {
+        const angle = (i/24)*Math.PI*2, dist = 150+Math.random()*180;
+        return <span key={i} className="confetti" style={{background:['var(--mummy)','var(--daddy)','var(--gordon)','var(--glo)'][i%4],'--dx':`${Math.cos(angle)*dist}px`,'--dy':`${Math.sin(angle)*dist+100}px`,'--rot':`${Math.random()*720-360}deg`,animationDelay:`${i*0.01}s`}}/>;
+      })}
+    </div>
+  );
+}
+
+// ----- Settings panel -----
+
+function SettingsPanel({ settings, setSettings, onReset, onClear }) {
+  const toggle = k => setSettings(s => ({...s,[k]:!s[k]}));
+  return (
+    <div className="settings-panel">
+      <h4>Settings</h4>
+      <div className="settings-row">
+        <label>Confetti on save</label>
+        <button className={settings.confetti!==false?'on':''} onClick={()=>toggle('confetti')}>
+          {settings.confetti!==false?'ON':'OFF'}
+        </button>
+      </div>
+      <div className="settings-row" style={{marginTop:8,gap:6}}>
+        <button onClick={onReset}>Reset to sample</button>
+        <button onClick={onClear}>Clear all</button>
+      </div>
+    </div>
+  );
+}
+
+// ----- Setup screen (shown before Firebase is configured) -----
+
+function SetupScreen() {
+  return (
+    <div className="setup-screen">
+      <div className="app-title serif" style={{fontSize:32}}>Family <em>Mahjong</em></div>
+      <div className="setup-card">
+        <h2>Firebase setup needed</h2>
+        <ol>
+          <li>Go to <strong>console.firebase.google.com</strong> and create a project</li>
+          <li>In the project, go to <strong>Build → Realtime Database → Create database</strong> and choose <em>Start in test mode</em></li>
+          <li>Go to <strong>Project Settings → Your apps → Add web app</strong> (the &lt;/&gt; icon)</li>
+          <li>Copy the <code>firebaseConfig</code> values into <code>FIREBASE_CONFIG</code> at the top of <code>index.html</code></li>
+          <li>Deploy the file and you're live</li>
+        </ol>
+      </div>
+      <div className="setup-rules">
+        <h3>Database rules</h3>
+        Keep the default test-mode rules for now. For permanent access, set these rules in Firebase console under <em>Realtime Database → Rules</em>:
+        <pre>{`{
+  "rules": {
+    ".read": true,
+    ".write": true
+  }
+}`}</pre>
+      </div>
+    </div>
+  );
+}
+
+// ----- App -----
+
+function App() {
+  const [view, setView] = useState(() => { try { return localStorage.getItem('mahjong_view_v1')||'scoreboard'; } catch { return 'scoreboard'; } });
+  const [rounds, setRounds] = useState(null);
+  const [newIds, setNewIds] = useState([]);
+  const [toast, setToast] = useState(null);
+  const [showBurst, setShowBurst] = useState(false);
+  const [scoreMode, setScoreMode] = useState(() => { try { return localStorage.getItem('mahjong_scoremode_v1')||'player'; } catch { return 'player'; } });
+  const [settings, setSettings] = useState({});
+  const [showSettings, setShowSettings] = useState(false);
+  const [online, setOnline] = useState(null);
+
+  // Firebase real-time listener
+  useEffect(() => {
+    if (!FIREBASE_READY) return;
+    const db = firebase.database();
+    const roundsRef = db.ref('rounds');
+    const connRef = db.ref('.info/connected');
+
+    const handleConn = snap => setOnline(!!snap.val());
+    connRef.on('value', handleConn);
+
+    const handleRounds = snapshot => {
+      const data = snapshot.val();
+      setRounds(Array.isArray(data) && data.length > 0 ? data : []);
+    };
+    roundsRef.on('value', handleRounds);
+
+    return () => { roundsRef.off('value', handleRounds); connRef.off('value', handleConn); };
+  }, []);
+
+  useEffect(() => { try { localStorage.setItem('mahjong_view_v1', view); } catch {} }, [view]);
+  useEffect(() => { try { localStorage.setItem('mahjong_scoremode_v1', scoreMode); } catch {} }, [scoreMode]);
+
+  const writeRounds = (next) => firebase.database().ref('rounds').set(next.length ? next : null);
+
+  const handleSave = ({ player, points, date }) => {
+    const id = Date.now();
+    const next = [...(rounds||[]), { id, player, points, date }];
+    setRounds(next);         // optimistic
+    writeRounds(next);
+    setNewIds([id]);
+    const p = PLAYERS.find(x => x.key===player);
+    setToast(`${p.name} +${points} tai${points>=7?' · big hand!':''}`);
+    if (settings.confetti!==false) { setShowBurst(true); setTimeout(()=>setShowBurst(false),1300); }
+    setTimeout(()=>setToast(null),2000);
+    setTimeout(()=>setNewIds([]),2500);
+    setView('scoreboard');
+  };
+
+  const handleReset = () => {
+    if (!confirm('Reset all scores to sample data?')) return;
+    const s = sampleData(); setRounds(s); writeRounds(s); setShowSettings(false);
+  };
+
+  const handleClear = () => {
+    if (!confirm('Clear all scores?')) return;
+    setRounds([]); writeRounds([]); setShowSettings(false);
+  };
+
+  if (!FIREBASE_READY) return <SetupScreen />;
+
+  if (rounds === null) return (
+    <div className="loading">
+      <div className="loading-tiles"><Tile big/><Tile big/><Tile big/><Tile big/><Tile big/></div>
+      <div className="serif" style={{fontSize:15,fontStyle:'italic'}}>connecting…</div>
+    </div>
+  );
+
+  return (
+    <>
+      {view==='scoreboard' && (
+        <div style={{position:'relative'}}>
+          <Scoreboard rounds={rounds} newIds={newIds} mode={scoreMode} setMode={setScoreMode} online={online}/>
+          <button className="settings-btn" style={{position:'absolute',top:20,right:20}} onClick={()=>setShowSettings(s=>!s)} title="Settings">
+            <svg width="18" height="18" viewBox="0 0 20 20" fill="none">
+              <circle cx="10" cy="10" r="2.5" stroke="currentColor" strokeWidth="1.5"/>
+              <path d="M10 2v2M10 16v2M2 10h2M16 10h2M4.93 4.93l1.41 1.41M13.66 13.66l1.41 1.41M4.93 15.07l1.41-1.41M13.66 6.34l1.41-1.41" stroke="currentColor" strokeWidth="1.5" strokeLinecap="round"/>
+            </svg>
+          </button>
+        </div>
+      )}
+      {view==='record' && <RecordRound onSave={handleSave}/>}
+      {view==='cheat' && <CheatSheet/>}
+
+      <nav className="nav">
+        <button className={`nav-btn ${view==='scoreboard'?'active':''}`} onClick={()=>setView('scoreboard')}>
+          <span className="nav-icon">{icons.scoreboard}</span>Scoreboard
+        </button>
+        <button className={`nav-btn ${view==='record'?'active':''}`} onClick={()=>setView('record')}>
+          <span className="nav-icon">{icons.record}</span>Record
+        </button>
+        <button className={`nav-btn ${view==='cheat'?'active':''}`} onClick={()=>setView('cheat')}>
+          <span className="nav-icon">{icons.cheat}</span>Cheat Sheet
+        </button>
+      </nav>
+
+      {toast && <div className="toast">{toast}</div>}
+      {showBurst && <Burst/>}
+      {showSettings && <SettingsPanel settings={settings} setSettings={setSettings} onReset={handleReset} onClear={handleClear}/>}
+    </>
+  );
+}
+
+ReactDOM.createRoot(document.getElementById('root')).render(<App/>);
+</script>
+
+<script>
+if ('serviceWorker' in navigator) {
+  window.addEventListener('load', () => navigator.serviceWorker.register('/sw.js'));
+}
+</script>
+</body>
+</html>
